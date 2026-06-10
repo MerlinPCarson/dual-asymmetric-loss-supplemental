@@ -1,0 +1,1292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Balancing Speech Reconstruction and Noise Suppression Using Dual-Asymmetric Loss</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-alt: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --border: #334155;
+      --shadow: rgba(15, 23, 42, 0.35);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc;
+        --panel: #ffffff;
+        --panel-alt: #f1f5f9;
+        --text: #0f172a;
+        --muted: #475569;
+        --accent: #0284c7;
+        --border: #cbd5e1;
+        --shadow: rgba(15, 23, 42, 0.08);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+
+    a { color: var(--accent); }
+    code {
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      background: color-mix(in srgb, var(--panel-alt) 88%, transparent);
+      padding: 0.12rem 0.35rem;
+      border-radius: 0.35rem;
+      font-size: 0.92em;
+    }
+
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      box-shadow: 0 16px 40px var(--shadow);
+    }
+
+    .hero {
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .hero h1 {
+      margin: 0 0 0.75rem;
+      font-size: clamp(2rem, 3vw, 3rem);
+      line-height: 1.1;
+      text-align: center;
+    }
+
+    .hero p {
+      margin: 0.35rem 0;
+      color: var(--muted);
+      max-width: 76ch;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center;
+    }
+
+    .author-block {
+      margin: 0.35rem 0 1rem;
+      width: 100%;
+    }
+
+    .author-line {
+      margin: 0.12rem 0;
+      color: var(--muted);
+      text-align: center;
+      max-width: none;
+    }
+
+    .abstract-block {
+      margin: 1.25rem auto 0;
+      max-width: 88ch;
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.9rem;
+      background: color-mix(in srgb, var(--panel-alt) 78%, transparent);
+    }
+
+    .abstract-block h2 {
+      margin-bottom: 0.55rem;
+      text-align: center;
+      font-size: 1.05rem;
+    }
+
+    .abstract-block p {
+      margin: 0;
+      text-align: justify;
+    }
+
+    .toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .toc a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      text-decoration: none;
+      padding: 0.65rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--panel-alt);
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .panel {
+      padding: 1.35rem;
+      margin-bottom: 1.25rem;
+    }
+
+    h2, h3, h4 {
+      line-height: 1.2;
+      margin-top: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 0.7rem 0.55rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 700;
+      background: color-mix(in srgb, var(--panel-alt) 92%, transparent);
+      position: sticky;
+      top: 0;
+    }
+
+    .center-cell {
+      text-align: center;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 0.85rem;
+    }
+
+    .paper-caption {
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .paper-table {
+      min-width: 1100px;
+    }
+
+    .paper-table thead tr:first-child th {
+      text-align: center;
+      font-size: 0.92rem;
+    }
+
+    .paper-table thead tr:nth-child(2) th {
+      text-align: center;
+    }
+
+    .paper-table td:first-child,
+    .paper-table th:first-child {
+      position: sticky;
+      left: 0;
+      background: var(--panel);
+      z-index: 1;
+    }
+
+    .paper-table td:nth-child(2),
+    .paper-table th:nth-child(2) {
+      background: color-mix(in srgb, var(--panel-alt) 92%, transparent);
+    }
+
+    .paper-table .section-start td {
+      border-top: 2px solid var(--border);
+    }
+
+    .paper-table .baseline-followup td {
+      border-top: 1px dashed var(--border);
+    }
+
+    .paper-table .dataset-divider {
+      border-left: 2px solid var(--border) !important;
+    }
+
+    .paper-table .row-label {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .dataset + .dataset {
+      margin-top: 2rem;
+    }
+
+    .sample-card {
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: color-mix(in srgb, var(--panel) 88%, var(--panel-alt));
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .sample-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: baseline;
+      flex-wrap: wrap;
+      margin-bottom: 0.85rem;
+    }
+
+    .sample-header p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .media-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .media-card {
+      border: 1px solid var(--border);
+      border-radius: 0.9rem;
+      padding: 0.9rem;
+      background: var(--panel-alt);
+    }
+
+    .media-card img {
+      width: 100%;
+      display: block;
+      border-radius: 0.7rem;
+      margin-bottom: 0.75rem;
+      border: 1px solid var(--border);
+      background: #020617;
+    }
+
+    .media-card audio {
+      width: 100%;
+      margin-bottom: 0.75rem;
+    }
+
+    .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .metric-pill {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.3rem 0.55rem;
+      font-size: 0.84rem;
+      background: color-mix(in srgb, var(--panel) 76%, transparent);
+    }
+
+    .family-group + .family-group {
+      margin-top: 1rem;
+    }
+
+    .footer {
+      color: var(--muted);
+      text-align: center;
+      margin-top: 2rem;
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <h1>Balancing Speech Reconstruction and Noise Suppression Using Dual-Asymmetric Loss</h1>
+      <div class="author-block">
+        <p class="author-line">Merlin Carson¹ Suyash Dandekar²</p>
+        <p class="author-line">¹Skyworks Solutions, USA</p>
+        <p class="author-line">²Georgia Institue of Technology, USA</p>
+        <p class="author-line">merlin.carson@skyworksinc.com, sdandekar7@gatech.edu</p>
+      </div>
+      <div class="abstract-block">
+        <h2>Abstract</h2>
+        <p>AI-based speech enhancement algorithms are prevalent in speech transmission applications and consumer audio devices. These algorithms typically utilize neural networks to predict filters or masks that attenuate noise in speech signals. However, due to the often-overlapping frequency responses of speech and noise, this process can degrade speech quality or result in residual noise artifacts. In this paper, we present a novel loss function with an adjustable parameter to balance the importance of reconstructing the original speech and the effectiveness of noise suppression. We demonstrate the efficacy of this loss with a variety of state-of-the-art architectures. Experimental results demonstrate improvements over baseline models for the targeted outcome: higher speech quality or enhanced noise suppression. Furthermore, the loss function exhibits a correlation of 0.95 for speech and -0.96 for noise metrics when tested across 13 distinct parameter values.</p>
+      </div>
+      <div class="toc">
+        <a href="#aggregate-results">Aggregate results</a>
+        <a href="#headset-test-6sec-pruned">DNS5 Blind Testset</a>
+        <a href="#VoiceBank-Demand">VoiceBank-Demand</a>
+      </div>
+    </section>
+
+    <section id="aggregate-results" class="panel">
+      <h2>Aggregate results</h2>
+      <h3>Table 1. Main evaluation results</h3>
+      <p class="paper-caption">Evaluation results for the four models trained with λ values 0.35, 0.5, and 0.65, respectively, where λ represents the asymmetric balance. Higher values of λ encourage better speech reconstruction while lower values of λ enforce stronger noise suppression. The "Noisy" row reports metrics on the unprocessed files. SEMamba and MP-SENet rows marked "n/a" for λ denote baseline results using official, publicly available weights.</p>
+      <div class="table-wrap">
+        <table class="paper-table">
+          <thead>
+            <tr>
+              <th colspan="2"></th>
+              <th colspan="3">DNS5 Blind Test Set</th>
+              <th colspan="7" class="dataset-divider">VoiceBank-DEMAND test set</th>
+            </tr>
+            <tr>
+              <th class="">Model</th>
+              <th class="center-cell">λ</th>
+              <th class="center-cell">SIG</th>
+              <th class="center-cell">BAK</th>
+              <th class="center-cell">OVRL</th>
+              <th class="center-cell dataset-divider">SIG</th>
+              <th class="center-cell">BAK</th>
+              <th class="center-cell">OVRL</th>
+              <th class="center-cell">PESQ</th>
+              <th class="center-cell">STOI</th>
+              <th class="center-cell">SI-SDR</th>
+              <th class="center-cell">WER (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="section-start">
+              <td class="row-label">Noisy</td>
+              <td class="center-cell">n/a</td>
+              <td class="center-cell">3.19</td>
+              <td class="center-cell">2.63</td>
+              <td class="center-cell">2.36</td>
+              <td class="center-cell dataset-divider">3.35</td>
+              <td class="center-cell">3.13</td>
+              <td class="center-cell">2.70</td>
+              <td class="center-cell">1.97</td>
+              <td class="center-cell">0.92</td>
+              <td class="center-cell">8.45</td>
+              <td class="center-cell">10.67</td>
+            </tr>
+            <tr class="section-start">
+              <td class="row-label">LiSenNet</td>
+              <td class="center-cell">0.35</td>
+              <td class="center-cell">3.09</td>
+              <td class="center-cell"><strong>3.66</strong></td>
+              <td class="center-cell">2.67</td>
+              <td class="center-cell dataset-divider">3.35</td>
+              <td class="center-cell"><strong>4.04</strong></td>
+              <td class="center-cell"><strong>3.09</strong></td>
+              <td class="center-cell"><strong>2.93</strong></td>
+              <td class="center-cell">0.93</td>
+              <td class="center-cell">18.08</td>
+              <td class="center-cell"><strong>6.80</strong></td>
+            </tr>
+            <tr>
+              <td class="row-label">LiSenNet</td>
+              <td class="center-cell">0.50</td>
+              <td class="center-cell">3.12</td>
+              <td class="center-cell">3.60</td>
+              <td class="center-cell">2.69</td>
+              <td class="center-cell dataset-divider">3.36</td>
+              <td class="center-cell">4.01</td>
+              <td class="center-cell">3.08</td>
+              <td class="center-cell">2.88</td>
+              <td class="center-cell">0.94</td>
+              <td class="center-cell"><strong>18.10</strong></td>
+              <td class="center-cell">7.26</td>
+            </tr>
+            <tr>
+              <td class="row-label">LiSenNet</td>
+              <td class="center-cell">0.65</td>
+              <td class="center-cell"><strong>3.22</strong></td>
+              <td class="center-cell">3.54</td>
+              <td class="center-cell"><strong>2.73</strong></td>
+              <td class="center-cell dataset-divider"><strong>3.38</strong></td>
+              <td class="center-cell">3.96</td>
+              <td class="center-cell">3.06</td>
+              <td class="center-cell">2.77</td>
+              <td class="center-cell"><strong>0.94</strong></td>
+              <td class="center-cell">17.93</td>
+              <td class="center-cell">7.09</td>
+            </tr>
+            <tr class="section-start">
+              <td class="row-label">DPCRN</td>
+              <td class="center-cell">0.35</td>
+              <td class="center-cell">3.23</td>
+              <td class="center-cell"><strong>3.88</strong></td>
+              <td class="center-cell">2.89</td>
+              <td class="center-cell dataset-divider">3.41</td>
+              <td class="center-cell"><strong>4.05</strong></td>
+              <td class="center-cell"><strong>3.14</strong></td>
+              <td class="center-cell"><strong>3.20</strong></td>
+              <td class="center-cell">0.95</td>
+              <td class="center-cell">18.46</td>
+              <td class="center-cell"><strong>6.21</strong></td>
+            </tr>
+            <tr>
+              <td class="row-label">DPCRN</td>
+              <td class="center-cell">0.50</td>
+              <td class="center-cell">3.25</td>
+              <td class="center-cell">3.84</td>
+              <td class="center-cell"><strong>2.90</strong></td>
+              <td class="center-cell dataset-divider">3.41</td>
+              <td class="center-cell">4.00</td>
+              <td class="center-cell">3.11</td>
+              <td class="center-cell">3.10</td>
+              <td class="center-cell">0.95</td>
+              <td class="center-cell"><strong>18.63</strong></td>
+              <td class="center-cell">6.96</td>
+            </tr>
+            <tr>
+              <td class="row-label">DPCRN</td>
+              <td class="center-cell">0.65</td>
+              <td class="center-cell"><strong>3.27</strong></td>
+              <td class="center-cell">3.78</td>
+              <td class="center-cell">2.88</td>
+              <td class="center-cell dataset-divider"><strong>3.42</strong></td>
+              <td class="center-cell">3.99</td>
+              <td class="center-cell">3.11</td>
+              <td class="center-cell">3.07</td>
+              <td class="center-cell"><strong>0.95</strong></td>
+              <td class="center-cell">18.51</td>
+              <td class="center-cell">6.51</td>
+            </tr>
+            <tr class="section-start baseline-row">
+              <td class="row-label">SEMamba</td>
+              <td class="center-cell">n/a</td>
+              <td class="center-cell">3.39</td>
+              <td class="center-cell">3.86</td>
+              <td class="center-cell">3.03</td>
+              <td class="center-cell dataset-divider"><strong>3.53</strong></td>
+              <td class="center-cell">4.07</td>
+              <td class="center-cell"><strong>3.25</strong></td>
+              <td class="center-cell"><strong>3.54</strong></td>
+              <td class="center-cell"><strong>0.96</strong></td>
+              <td class="center-cell">19.72</td>
+              <td class="center-cell"><strong>5.82</strong></td>
+            </tr>
+            <tr class="baseline-followup">
+              <td class="row-label">SEMamba</td>
+              <td class="center-cell">0.35</td>
+              <td class="center-cell">3.37</td>
+              <td class="center-cell"><strong>3.93</strong></td>
+              <td class="center-cell"><strong>3.04</strong></td>
+              <td class="center-cell dataset-divider">3.48</td>
+              <td class="center-cell"><strong>4.08</strong></td>
+              <td class="center-cell">3.22</td>
+              <td class="center-cell">3.42</td>
+              <td class="center-cell">0.96</td>
+              <td class="center-cell">19.84</td>
+              <td class="center-cell">6.00</td>
+            </tr>
+            <tr>
+              <td class="row-label">SEMamba</td>
+              <td class="center-cell">0.50</td>
+              <td class="center-cell">3.37</td>
+              <td class="center-cell">3.89</td>
+              <td class="center-cell">3.03</td>
+              <td class="center-cell dataset-divider">3.49</td>
+              <td class="center-cell">4.08</td>
+              <td class="center-cell">3.23</td>
+              <td class="center-cell">3.38</td>
+              <td class="center-cell">0.96</td>
+              <td class="center-cell"><strong>19.92</strong></td>
+              <td class="center-cell">5.87</td>
+            </tr>
+            <tr>
+              <td class="row-label">SEMamba</td>
+              <td class="center-cell">0.65</td>
+              <td class="center-cell"><strong>3.40</strong></td>
+              <td class="center-cell">3.85</td>
+              <td class="center-cell">3.03</td>
+              <td class="center-cell dataset-divider">3.49</td>
+              <td class="center-cell">4.06</td>
+              <td class="center-cell">3.22</td>
+              <td class="center-cell">3.32</td>
+              <td class="center-cell">0.96</td>
+              <td class="center-cell">19.61</td>
+              <td class="center-cell">6.33</td>
+            </tr>
+            <tr class="section-start baseline-row">
+              <td class="row-label">MP-SENet</td>
+              <td class="center-cell">n/a</td>
+              <td class="center-cell">3.39</td>
+              <td class="center-cell">3.92</td>
+              <td class="center-cell">3.06</td>
+              <td class="center-cell dataset-divider"><strong>3.52</strong></td>
+              <td class="center-cell">4.07</td>
+              <td class="center-cell"><strong>3.24</strong></td>
+              <td class="center-cell"><strong>3.62</strong></td>
+              <td class="center-cell"><strong>0.96</strong></td>
+              <td class="center-cell">19.36</td>
+              <td class="center-cell">6.13</td>
+            </tr>
+            <tr class="baseline-followup">
+              <td class="row-label">MP-SENet</td>
+              <td class="center-cell">0.35</td>
+              <td class="center-cell">3.39</td>
+              <td class="center-cell"><strong>3.95</strong></td>
+              <td class="center-cell">3.07</td>
+              <td class="center-cell dataset-divider">3.48</td>
+              <td class="center-cell"><strong>4.10</strong></td>
+              <td class="center-cell">3.23</td>
+              <td class="center-cell">3.45</td>
+              <td class="center-cell">0.95</td>
+              <td class="center-cell">20.05</td>
+              <td class="center-cell"><strong>6.09</strong></td>
+            </tr>
+            <tr>
+              <td class="row-label">MP-SENet</td>
+              <td class="center-cell">0.50</td>
+              <td class="center-cell">3.41</td>
+              <td class="center-cell">3.93</td>
+              <td class="center-cell">3.08</td>
+              <td class="center-cell dataset-divider">3.49</td>
+              <td class="center-cell">4.09</td>
+              <td class="center-cell">3.23</td>
+              <td class="center-cell">3.41</td>
+              <td class="center-cell">0.96</td>
+              <td class="center-cell"><strong>20.23</strong></td>
+              <td class="center-cell">6.15</td>
+            </tr>
+            <tr>
+              <td class="row-label">MP-SENet</td>
+              <td class="center-cell">0.65</td>
+              <td class="center-cell"><strong>3.43</strong></td>
+              <td class="center-cell">3.94</td>
+              <td class="center-cell"><strong>3.10</strong></td>
+              <td class="center-cell dataset-divider">3.50</td>
+              <td class="center-cell">4.07</td>
+              <td class="center-cell">3.23</td>
+              <td class="center-cell">3.34</td>
+              <td class="center-cell">0.96</td>
+              <td class="center-cell">19.89</td>
+              <td class="center-cell">6.14</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="headset-test-6sec-pruned" class="panel dataset">
+      <h2>DNS5 Blind Testset</h2>
+      <p>Headset recordings made in real noisy environments.</p>
+      <p></p>
+
+      <article id="dns5-blind-testset-ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1" class="sample-card">
+        <div class="sample-header">
+          <div>
+            <h3>ms_realrec_emotional_headset_A72LC42LU78IP_typing_near_sad_fileid_1.wav</h3>
+          </div>
+          <a href="#top">Back to top</a>
+        </div>
+
+        <div class="media-grid">
+          <div class="media-card">
+            <h5>Noisy real recording</h5>
+            <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/noisy-input.png" alt="Spectrogram for Noisy real recording">
+            <audio controls preload="none">
+              <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/noisy-input.wav" type="audio/wav">
+            </audio>
+            <div class="metrics">
+              <span class="metric-pill">DNSMOS SIG: 3.402</span>
+              <span class="metric-pill">DNSMOS BAK: 2.529</span>
+              <span class="metric-pill">DNSMOS OVRL: 2.390</span>
+            </div>
+          </div>
+        </div>
+
+        <h4 style="margin-top: 1.4rem;">Enhanced outputs</h4>
+        <div class="family-group">
+          <h5>LiSen</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/lisen-0-35.png" alt="Spectrogram for LiSen (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/lisen-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.155</span>
+                <span class="metric-pill">DNSMOS BAK: 3.668</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.765</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/lisen-0-65.png" alt="Spectrogram for LiSen (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/lisen-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.236</span>
+                <span class="metric-pill">DNSMOS BAK: 3.115</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.574</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>DPCRN</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/dpcrn-0-35.png" alt="Spectrogram for DPCRN (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/dpcrn-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.210</span>
+                <span class="metric-pill">DNSMOS BAK: 3.786</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.861</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/dpcrn-0-65.png" alt="Spectrogram for DPCRN (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/dpcrn-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.326</span>
+                <span class="metric-pill">DNSMOS BAK: 3.391</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.792</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>SEMamba</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/semamba-baseline.png" alt="Spectrogram for SEMamba (official baseline)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/semamba-baseline.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.336</span>
+                <span class="metric-pill">DNSMOS BAK: 3.855</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.997</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/semamba-0-35.png" alt="Spectrogram for SEMamba (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/semamba-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.247</span>
+                <span class="metric-pill">DNSMOS BAK: 3.784</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.892</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/semamba-0-65.png" alt="Spectrogram for SEMamba (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/semamba-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.349</span>
+                <span class="metric-pill">DNSMOS BAK: 3.645</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.911</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>MP-SENet</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/mp-senet-baseline.png" alt="Spectrogram for MP-SENet (official baseline)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/mp-senet-baseline.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.413</span>
+                <span class="metric-pill">DNSMOS BAK: 4.021</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.128</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/mp-senet-0-35.png" alt="Spectrogram for MP-SENet (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/mp-senet-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.393</span>
+                <span class="metric-pill">DNSMOS BAK: 4.006</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.107</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/mp-senet-0-65.png" alt="Spectrogram for MP-SENet (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-realrec-emotional-headset-a72lc42lu78ip-typing-near-sad-fileid-1/mp-senet-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.310</span>
+                <span class="metric-pill">DNSMOS BAK: 3.605</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.857</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+      <article id="dns5-blind-testset-ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6" class="sample-card">
+        <div class="sample-header">
+          <div>
+            <h3>ms_pns_DellLaptop_headset_A2CNBBKUVPDN65_typing_primarywithnoise_fileid_6.wav</h3>
+          </div>
+          <a href="#top">Back to top</a>
+        </div>
+
+        <div class="media-grid">
+          <div class="media-card">
+            <h5>Noisy real recording</h5>
+            <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/noisy-input.png" alt="Spectrogram for Noisy real recording">
+            <audio controls preload="none">
+              <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/noisy-input.wav" type="audio/wav">
+            </audio>
+            <div class="metrics">
+              <span class="metric-pill">DNSMOS SIG: 3.305</span>
+              <span class="metric-pill">DNSMOS BAK: 2.365</span>
+              <span class="metric-pill">DNSMOS OVRL: 2.238</span>
+            </div>
+          </div>
+        </div>
+
+        <h4 style="margin-top: 1.4rem;">Enhanced outputs</h4>
+        <div class="family-group">
+          <h5>LiSen</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/lisen-0-35.png" alt="Spectrogram for LiSen (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/lisen-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 2.865</span>
+                <span class="metric-pill">DNSMOS BAK: 3.794</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.574</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/lisen-0-65.png" alt="Spectrogram for LiSen (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/lisen-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.055</span>
+                <span class="metric-pill">DNSMOS BAK: 3.477</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.609</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>DPCRN</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/dpcrn-0-35.png" alt="Spectrogram for DPCRN (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/dpcrn-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 2.918</span>
+                <span class="metric-pill">DNSMOS BAK: 3.763</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.608</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/dpcrn-0-65.png" alt="Spectrogram for DPCRN (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/dpcrn-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.111</span>
+                <span class="metric-pill">DNSMOS BAK: 3.644</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.700</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>SEMamba</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/semamba-baseline.png" alt="Spectrogram for SEMamba (official baseline)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/semamba-baseline.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.194</span>
+                <span class="metric-pill">DNSMOS BAK: 3.292</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.632</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/semamba-0-35.png" alt="Spectrogram for SEMamba (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/semamba-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 2.954</span>
+                <span class="metric-pill">DNSMOS BAK: 3.364</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.491</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/semamba-0-65.png" alt="Spectrogram for SEMamba (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/semamba-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.185</span>
+                <span class="metric-pill">DNSMOS BAK: 3.169</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.548</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>MP-SENet</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/mp-senet-baseline.png" alt="Spectrogram for MP-SENet (official baseline)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/mp-senet-baseline.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.152</span>
+                <span class="metric-pill">DNSMOS BAK: 3.773</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.823</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/mp-senet-0-35.png" alt="Spectrogram for MP-SENet (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/mp-senet-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.064</span>
+                <span class="metric-pill">DNSMOS BAK: 3.588</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.693</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/mp-senet-0-65.png" alt="Spectrogram for MP-SENet (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/dns5-blind-testset/ms-pns-delllaptop-headset-a2cnbbkuvpdn65-typing-primarywithnoise-fileid-6/mp-senet-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">DNSMOS SIG: 3.172</span>
+                <span class="metric-pill">DNSMOS BAK: 3.412</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.676</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+    <section id="VoiceBank-Demand" class="panel dataset">
+      <h2>VoiceBank-Demand</h2>
+      <p>Syntheticaly generated noisy speech with paired clean references.</p>
+      <p>Each example includes the clean reference, noisy mixture, and all 12 enhanced outputs. Metrics shown are per-file objective scores.</p>
+
+      <article id="voicebank-demand-p232-104" class="sample-card">
+        <div class="sample-header">
+          <div>
+            <h3>p232_104.wav</h3>
+          </div>
+          <a href="#top">Back to top</a>
+        </div>
+
+        <div class="media-grid">
+          <div class="media-card">
+            <h5>Clean reference</h5>
+            <img src="assets/spectrograms/voicebank-demand/p232-104/clean-reference.png" alt="Spectrogram for Clean reference">
+            <audio controls preload="none">
+              <source src="assets/audio/voicebank-demand/p232-104/clean-reference.wav" type="audio/wav">
+            </audio>
+          </div>
+          <div class="media-card">
+            <h5>Noisy input</h5>
+            <img src="assets/spectrograms/voicebank-demand/p232-104/noisy-input.png" alt="Spectrogram for Noisy input">
+            <audio controls preload="none">
+              <source src="assets/audio/voicebank-demand/p232-104/noisy-input.wav" type="audio/wav">
+            </audio>
+            <div class="metrics">
+              <span class="metric-pill">PESQ: 1.297</span>
+              <span class="metric-pill">STOI: 0.926</span>
+              <span class="metric-pill">SI-SDR: 1.263</span>
+              <span class="metric-pill">DNSMOS SIG: 3.429</span>
+              <span class="metric-pill">DNSMOS BAK: 2.316</span>
+              <span class="metric-pill">DNSMOS OVRL: 2.281</span>
+            </div>
+          </div>
+        </div>
+
+        <h4 style="margin-top: 1.4rem;">Enhanced outputs</h4>
+        <div class="family-group">
+          <h5>LiSen</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/lisen-0-35.png" alt="Spectrogram for LiSen (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/lisen-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.602</span>
+                <span class="metric-pill">STOI: 0.944</span>
+                <span class="metric-pill">SI-SDR: 14.386</span>
+                <span class="metric-pill">DNSMOS SIG: 3.326</span>
+                <span class="metric-pill">DNSMOS BAK: 4.076</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.076</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/lisen-0-65.png" alt="Spectrogram for LiSen (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/lisen-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.461</span>
+                <span class="metric-pill">STOI: 0.943</span>
+                <span class="metric-pill">SI-SDR: 14.795</span>
+                <span class="metric-pill">DNSMOS SIG: 3.388</span>
+                <span class="metric-pill">DNSMOS BAK: 3.965</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.088</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>DPCRN</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/dpcrn-0-35.png" alt="Spectrogram for DPCRN (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/dpcrn-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.848</span>
+                <span class="metric-pill">STOI: 0.949</span>
+                <span class="metric-pill">SI-SDR: 15.325</span>
+                <span class="metric-pill">DNSMOS SIG: 3.471</span>
+                <span class="metric-pill">DNSMOS BAK: 4.097</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.220</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/dpcrn-0-65.png" alt="Spectrogram for DPCRN (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/dpcrn-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.739</span>
+                <span class="metric-pill">STOI: 0.948</span>
+                <span class="metric-pill">SI-SDR: 15.834</span>
+                <span class="metric-pill">DNSMOS SIG: 3.528</span>
+                <span class="metric-pill">DNSMOS BAK: 4.033</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.247</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>SEMamba</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/semamba-baseline.png" alt="Spectrogram for SEMamba (official baseline)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/semamba-baseline.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.955</span>
+                <span class="metric-pill">STOI: 0.954</span>
+                <span class="metric-pill">SI-SDR: 17.926</span>
+                <span class="metric-pill">DNSMOS SIG: 3.633</span>
+                <span class="metric-pill">DNSMOS BAK: 4.071</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.365</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/semamba-0-35.png" alt="Spectrogram for SEMamba (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/semamba-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 3.042</span>
+                <span class="metric-pill">STOI: 0.952</span>
+                <span class="metric-pill">SI-SDR: 17.968</span>
+                <span class="metric-pill">DNSMOS SIG: 3.613</span>
+                <span class="metric-pill">DNSMOS BAK: 4.159</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.399</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/semamba-0-65.png" alt="Spectrogram for SEMamba (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/semamba-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.739</span>
+                <span class="metric-pill">STOI: 0.947</span>
+                <span class="metric-pill">SI-SDR: 17.724</span>
+                <span class="metric-pill">DNSMOS SIG: 3.617</span>
+                <span class="metric-pill">DNSMOS BAK: 4.079</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.355</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>MP-SENet</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/mp-senet-baseline.png" alt="Spectrogram for MP-SENet (official baseline)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/mp-senet-baseline.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 3.053</span>
+                <span class="metric-pill">STOI: 0.959</span>
+                <span class="metric-pill">SI-SDR: 16.276</span>
+                <span class="metric-pill">DNSMOS SIG: 3.671</span>
+                <span class="metric-pill">DNSMOS BAK: 4.088</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.408</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/mp-senet-0-35.png" alt="Spectrogram for MP-SENet (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/mp-senet-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.932</span>
+                <span class="metric-pill">STOI: 0.951</span>
+                <span class="metric-pill">SI-SDR: 17.828</span>
+                <span class="metric-pill">DNSMOS SIG: 3.589</span>
+                <span class="metric-pill">DNSMOS BAK: 4.137</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.364</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p232-104/mp-senet-0-65.png" alt="Spectrogram for MP-SENet (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p232-104/mp-senet-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.667</span>
+                <span class="metric-pill">STOI: 0.949</span>
+                <span class="metric-pill">SI-SDR: 17.909</span>
+                <span class="metric-pill">DNSMOS SIG: 3.605</span>
+                <span class="metric-pill">DNSMOS BAK: 4.081</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.345</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+      <article id="voicebank-demand-p257-311" class="sample-card">
+        <div class="sample-header">
+          <div>
+            <h3>p257_311.wav</h3>
+          </div>
+          <a href="#top">Back to top</a>
+        </div>
+
+        <div class="media-grid">
+          <div class="media-card">
+            <h5>Clean reference</h5>
+            <img src="assets/spectrograms/voicebank-demand/p257-311/clean-reference.png" alt="Spectrogram for Clean reference">
+            <audio controls preload="none">
+              <source src="assets/audio/voicebank-demand/p257-311/clean-reference.wav" type="audio/wav">
+            </audio>
+          </div>
+          <div class="media-card">
+            <h5>Noisy input</h5>
+            <img src="assets/spectrograms/voicebank-demand/p257-311/noisy-input.png" alt="Spectrogram for Noisy input">
+            <audio controls preload="none">
+              <source src="assets/audio/voicebank-demand/p257-311/noisy-input.wav" type="audio/wav">
+            </audio>
+            <div class="metrics">
+              <span class="metric-pill">PESQ: 1.054</span>
+              <span class="metric-pill">STOI: 0.784</span>
+              <span class="metric-pill">SI-SDR: 1.302</span>
+              <span class="metric-pill">DNSMOS SIG: 1.194</span>
+              <span class="metric-pill">DNSMOS BAK: 1.153</span>
+              <span class="metric-pill">DNSMOS OVRL: 1.109</span>
+            </div>
+          </div>
+        </div>
+
+        <h4 style="margin-top: 1.4rem;">Enhanced outputs</h4>
+        <div class="family-group">
+          <h5>LiSen</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/lisen-0-35.png" alt="Spectrogram for LiSen (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/lisen-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 1.665</span>
+                <span class="metric-pill">STOI: 0.809</span>
+                <span class="metric-pill">SI-SDR: 12.452</span>
+                <span class="metric-pill">DNSMOS SIG: 2.698</span>
+                <span class="metric-pill">DNSMOS BAK: 3.971</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.472</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/lisen-0-65.png" alt="Spectrogram for LiSen (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/lisen-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 1.700</span>
+                <span class="metric-pill">STOI: 0.808</span>
+                <span class="metric-pill">SI-SDR: 12.819</span>
+                <span class="metric-pill">DNSMOS SIG: 2.720</span>
+                <span class="metric-pill">DNSMOS BAK: 3.852</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.465</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>DPCRN</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/dpcrn-0-35.png" alt="Spectrogram for DPCRN (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/dpcrn-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.032</span>
+                <span class="metric-pill">STOI: 0.846</span>
+                <span class="metric-pill">SI-SDR: 13.440</span>
+                <span class="metric-pill">DNSMOS SIG: 2.965</span>
+                <span class="metric-pill">DNSMOS BAK: 3.908</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.670</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/dpcrn-0-65.png" alt="Spectrogram for DPCRN (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/dpcrn-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 1.845</span>
+                <span class="metric-pill">STOI: 0.860</span>
+                <span class="metric-pill">SI-SDR: 13.817</span>
+                <span class="metric-pill">DNSMOS SIG: 3.034</span>
+                <span class="metric-pill">DNSMOS BAK: 3.838</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.718</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>SEMamba</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/semamba-baseline.png" alt="Spectrogram for SEMamba (official baseline)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/semamba-baseline.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.152</span>
+                <span class="metric-pill">STOI: 0.908</span>
+                <span class="metric-pill">SI-SDR: 15.684</span>
+                <span class="metric-pill">DNSMOS SIG: 3.389</span>
+                <span class="metric-pill">DNSMOS BAK: 4.016</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.089</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/semamba-0-35.png" alt="Spectrogram for SEMamba (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/semamba-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.270</span>
+                <span class="metric-pill">STOI: 0.913</span>
+                <span class="metric-pill">SI-SDR: 15.553</span>
+                <span class="metric-pill">DNSMOS SIG: 3.300</span>
+                <span class="metric-pill">DNSMOS BAK: 4.177</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.094</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/semamba-0-65.png" alt="Spectrogram for SEMamba (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/semamba-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.223</span>
+                <span class="metric-pill">STOI: 0.879</span>
+                <span class="metric-pill">SI-SDR: 15.510</span>
+                <span class="metric-pill">DNSMOS SIG: 3.427</span>
+                <span class="metric-pill">DNSMOS BAK: 4.129</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.175</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="family-group">
+          <h5>MP-SENet</h5>
+          <div class="media-grid">
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/mp-senet-baseline.png" alt="Spectrogram for MP-SENet (official baseline)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/mp-senet-baseline.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.367</span>
+                <span class="metric-pill">STOI: 0.897</span>
+                <span class="metric-pill">SI-SDR: 9.469</span>
+                <span class="metric-pill">DNSMOS SIG: 3.224</span>
+                <span class="metric-pill">DNSMOS BAK: 4.002</span>
+                <span class="metric-pill">DNSMOS OVRL: 2.946</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/mp-senet-0-35.png" alt="Spectrogram for MP-SENet (λ = 0.35)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/mp-senet-0-35.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.421</span>
+                <span class="metric-pill">STOI: 0.919</span>
+                <span class="metric-pill">SI-SDR: 15.629</span>
+                <span class="metric-pill">DNSMOS SIG: 3.356</span>
+                <span class="metric-pill">DNSMOS BAK: 4.191</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.146</span>
+              </div>
+            </div>
+            <div class="media-card">
+              <img src="assets/spectrograms/voicebank-demand/p257-311/mp-senet-0-65.png" alt="Spectrogram for MP-SENet (λ = 0.65)">
+              <audio controls preload="none">
+                <source src="assets/audio/voicebank-demand/p257-311/mp-senet-0-65.wav" type="audio/wav">
+              </audio>
+              <div class="metrics">
+                <span class="metric-pill">PESQ: 2.329</span>
+                <span class="metric-pill">STOI: 0.876</span>
+                <span class="metric-pill">SI-SDR: 15.819</span>
+                <span class="metric-pill">DNSMOS SIG: 3.484</span>
+                <span class="metric-pill">DNSMOS BAK: 4.172</span>
+                <span class="metric-pill">DNSMOS OVRL: 3.264</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <p class="footer">© 2026 Skyworks Solutions, Inc. All rights reserved.</p>
+  </div>
+</body>
+</html>
